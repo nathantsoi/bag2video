@@ -6,6 +6,7 @@ import sys, os, cv2, glob
 from itertools import repeat
 import argparse
 import logging
+import traceback
 
 # try to find cv_bridge:
 try:
@@ -16,9 +17,10 @@ except ImportError:
     try:
         import roslib; roslib.load_manifest("bag2video")
         from cv_bridge import CvBridge
-    except:
+    except Exception:
         logging.critical("Could not find ROS package: cv_bridge.")
         logging.critical("If ROS version is pre-Groovy, try putting this package in ROS_PACKAGE_PATH.")
+        traceback.print_exc()
         sys.exit(1)
 
 def get_info(bag, topic=None, start_time=rospy.Time(0), stop_time=rospy.Time(sys.maxsize)):
@@ -34,30 +36,37 @@ def get_info(bag, topic=None, start_time=rospy.Time(0), stop_time=rospy.Time(sys
     for _, msg, _ in iterator:
         time = msg.header.stamp
         times.append(time.to_sec())
+    if len(times)<2:
+        logging.warning("Less than two timestamps found.")
+    if size == (0,0):
+        logging.warning("Either no images, or images of size (0,0).")
     return size, times
 
 def calc_n_frames(times, fps=30.0,start_time=rospy.Time(0), stop_time=rospy.Time(sys.maxsize)):
-    # adds buffer at start and end for the edge cases
-    times = np.insert(times,0,2*times[0]-times[1])
-    times = np.append(times,2*times[-1]-times[-2])
+    try:
+        # adds buffer at start and end for the edge cases
+        times = np.insert(times,0,2*times[0]-times[1])
+        times = np.append(times,2*times[-1]-times[-2])
 
-    # converts timestamps to frame numbers of final video
-    rate = 1.0/fps
-    frames = [int(time/rate) for time in times]
+        # converts timestamps to frame numbers of final video
+        rate = 1.0/fps
+        frames = [int(time/rate) for time in times]
 
-    # converts frame numbers to duration each image is displayed
-    num_frames = [frames[i+1]-frames[i] for i in range(0,len(frames)-2)]
-    logging.debug(num_frames)
+        # converts frame numbers to duration each image is displayed
+        num_frames = [frames[i+1]-frames[i] for i in range(0,len(frames)-2)]
+    except IndexError:
+        logging.critical("IndexError when calculating number of frames each image is displayed for.")
+        logging.critical("Are there less than two timestamps?")
+        traceback.print_exc()
+        sys.exit(1)
     return num_frames
 
 def write_frames(bag, writer, total, topic=None, num_frames=repeat(1), start_time=rospy.Time(0), stop_time=rospy.Time(sys.maxsize), viz=False, encoding='bgr8'):
     bridge = CvBridge()
-    if viz:
-        cv2.namedWindow('win')
-    count = 1
     iterator = bag.read_messages(topics=topic, start_time=start_time, end_time=stop_time)
+    count=1
     for (topic, msg, time), reps in zip(iterator, num_frames):
-        logging.debug('Writing frame %s of %s at time %s.' % (count, total, time))
+        logging.debug('Writing image %s of %s at time %s for %s frames.' % (count, total, time, reps))
         img = np.asarray(bridge.imgmsg_to_cv2(msg, 'bgr8'))
         for rep in range(reps):
             writer.write(img)
