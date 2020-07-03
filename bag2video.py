@@ -24,6 +24,7 @@ except ImportError:
         sys.exit(1)
 
 def get_info(bag, topic=None, start_time=rospy.Time(0), stop_time=rospy.Time(sys.maxsize)):
+    logging.info("Gathering info about topic %s."%topic)
     size = (0,0)
     times = []
 
@@ -40,11 +41,15 @@ def get_info(bag, topic=None, start_time=rospy.Time(0), stop_time=rospy.Time(sys
         logging.warning("Less than two timestamps found.")
     if size == (0,0):
         logging.warning("Either no images, or images of size (0,0).")
+
+    logging.debug("Start time %s." % times[0])
+    logging.debug("End time %s." % times[-1])
+
     return size, times
 
 def calc_n_frames(times, fps=30.0,start_time=rospy.Time(0), stop_time=rospy.Time(sys.maxsize)):
     try:
-        # adds buffer at start and end for the edge cases
+        # adds fake timestamps to the ends so the first and last images don't get their duration cut in half
         times = np.insert(times,0,2*times[0]-times[1])
         times = np.append(times,2*times[-1]-times[-2])
 
@@ -87,15 +92,15 @@ if __name__ == '__main__':
     parser.add_argument('--fps', '-f', action='store', default=30, type=int,
                         help='FPS of the output video.')
     parser.add_argument('--viz', '-v', action='store_true', help='Display frames in a GUI window.')
-    parser.add_argument('--start', '-s', action='store', default=rospy.Time(0), type=rospy.Time,
+    parser.add_argument('--start', '-s', action='store', default=0, type=float,
                         help='Rostime representing where to start in the bag.')
-    parser.add_argument('--end', '-e', action='store', default=rospy.Time(sys.maxsize), type=rospy.Time,
+    parser.add_argument('--end', '-e', action='store', default=sys.maxsize, type=float,
                         help='Rostime representing where to stop in the bag.')
     parser.add_argument('--encoding', choices=('rgb8', 'bgr8', 'mono8'), default='bgr8',
                         help='Encoding of the deserialized image.')
     parser.add_argument('--log', '-l',action='store',default='INFO',help='Logging level.')
-    parser.add_argument('topic')
-    parser.add_argument('bagfile')
+    parser.add_argument('bagfile', help='Specifies the location of the bag file. Works with glob.')
+    parser.add_argument('topic',nargs='+',help='Image topics to merge in output video.')
 
     args = parser.parse_args()
 
@@ -107,6 +112,9 @@ if __name__ == '__main__':
     if not args.viz:
         imshow = noshow
 
+    start_time=rospy.Time(args.start)
+    stop_time=rospy.Time(args.end)
+
     for bagfile in glob.glob(args.bagfile):
         logging.info(bagfile)
         outfile = args.outfile
@@ -114,7 +122,7 @@ if __name__ == '__main__':
             outfile = os.path.join(*os.path.split(bagfile)[-1].split('.')[:-1]) + '.avi'
         bag = rosbag.Bag(bagfile, 'r')
         logging.info('Calculating video properties.')
-        size, times = get_info(bag, args.topic, start_time=args.start, stop_time=args.end)
+        size, times = get_info(bag, args.topic, start_time=start_time, stop_time=stop_time)
         logging.info('Calculating frame durations.')
         num_frames = calc_n_frames(times, args.fps)
         # writer = cv2.VideoWriter(outfile, cv2.cv.CV_FOURCC(*'DIVX'), rate, size)
@@ -122,6 +130,6 @@ if __name__ == '__main__':
         fourcc = cv2.VideoWriter_fourcc('M','J','P','G')
         writer = cv2.VideoWriter(outfile, fourcc, np.ceil(args.fps), size)
         logging.info('Writing video.')
-        write_frames(bag, writer, len(times), topic=args.topic, num_frames=num_frames, start_time=args.start, stop_time=args.end, encoding=args.encoding)
+        write_frames(bag, writer, len(times), topic=args.topic, num_frames=num_frames, start_time=start_time, stop_time=stop_time, encoding=args.encoding)
         writer.release()
         logging.info('Done.')
