@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/usr/bin/env python
 
 from __future__ import division
 import rosbag, rospy, numpy as np
@@ -108,11 +108,11 @@ def write_frames(bag, writer, topics, sizes, fps, start_time=rospy.Time(0), stop
         # prevent unnecessary calculations
         if reps>0:
             # record the current information up to this point in time
-            logging.info('Writing image %s at time %s seconds, frame %s for %s frames.' % (count, time, frame_num, reps))
+            logging.info('Writing image %s at time %.6f seconds, frame %s for %s frames.' % (count, time, frame_num, reps))
             merged_image = merge_images(images, sizes)
-            for i in range(reps):                                                                                                       
-                writer.write(merged_image) # opencv
-                # writer.append_data(merged_image) # imageio
+            for i in range(reps):
+                #writer.write(merged_image) # opencv
+                writer.append_data(merged_image) # imageio
             imshow('win', merged_image)
             frame_num = frame_num_next
             count += 1
@@ -162,7 +162,7 @@ if __name__ == '__main__':
     logging.info('Logging at level %s.',args.log.upper())
     if not args.viz:
         imshow = noshow
-    
+
     # convert numbers into rospy Time
     start_time=rospy.Time(args.start)
     stop_time=rospy.Time(args.end)
@@ -180,13 +180,13 @@ if __name__ == '__main__':
         logging.critical("Index specified for resizing is out of bounds.")
         traceback.print_exc()
         sys.exit(1)
-    
+
     for bagfile in glob.glob(args.bagfile):
         logging.info('Proccessing bag %s.'% bagfile)
         outfile = args.outfile
         if outfile is None:
             folder, name = os.path.split(bagfile)
-            outfile = os.path.join(folder, name[:name.rfind('.')]) + '.avi'
+            outfile = os.path.join(folder, name[:name.rfind('.')]) + '.mp4'
         bag = rosbag.Bag(bagfile, 'r')
 
         fps = args.fps
@@ -205,14 +205,14 @@ if __name__ == '__main__':
         logging.info('Resulting video of width %s and height %s.'%(out_width,out_height))
 
         logging.info('Opening video writer.')
-        fourcc = cv2.VideoWriter_fourcc(*args.fourcc) # opencv
-        writer = cv2.VideoWriter(outfile, fourcc, fps, (out_width,out_height)) # opencv
-        # writer = imageio.get_writer(outfile, fps=fps, mode='I', format="FFMPEG", macro_block_size=1) # imageio
+        #fourcc = cv2.VideoWriter_fourcc(*args.fourcc) # opencv
+        #writer = cv2.VideoWriter(outfile, fourcc, fps, (out_width,out_height)) # opencv
+        writer = imageio.get_writer(outfile, format='FFMPEG', mode='I', fps=fps, codec='h264' )
+        #writer = imageio.get_writer(outfile, fps=fps, mode='I', format="FFMPEG", macro_block_size=1) # imageio
 
         logging.info('Writing video at %s.'% outfile)
         write_frames(bag=bag, writer=writer, topics=args.topics, sizes=sizes, fps=fps, start_time=start_time, stop_time=stop_time, encoding=args.encoding)
-        writer.release() # opencv
-        # writer.close() # imageio
+        #writer.release() # opencv
+        writer.close() # imageio
 
         logging.info('Done.')
-    
