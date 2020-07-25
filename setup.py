@@ -19,7 +19,7 @@ setuptools.setup(
         "Operating System :: OS Independent",
     ],
     python_requires='>=3.6',
-    scripts=['bag2video.py']
+    scripts=['bag2video.py', 'bag2images.py']
     # entry_points={
     # 'console_scripts': [
     #     'sample=sample:main',
