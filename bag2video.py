@@ -117,7 +117,7 @@ def write_frames(bag, writer, topics, sizes, fps, start_time=rospy.Time(0), stop
             frame_num = frame_num_next
             count += 1
 
-        image = np.asarray(bridge.imgmsg_to_cv2(msg, 'bgr8'))
+        image = np.asarray(bridge.imgmsg_to_cv2(msg, 'rgb8'))
         images[convert[topic]] = image
 
 def imshow(win, img):
