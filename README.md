@@ -7,7 +7,7 @@ This should not be used for precise conversions. The primary purpose is to provi
 
 * The program updates for every relevant message in the bag file. Each update, the most recently processed images from each topic are horizontally concatenated. The resulting image is written for duration equal to the time since the last update. Black images are used as substitutes for topics that have not had a message.
 * If a particular topic ends earlier than the rest, then the program will continue using the most recent image from that topic. This behavior may or may not be desirable.
-* Because bag files use timestamps, there is no information on how long the last message should last. The program avoids this problem for the last output image by not writing it at all. 
+* Because bag files use timestamps, there is no information on how long the last message should last. The program avoids this problem for the last output image by not writing it at all.
 
 This script is heavily modified from the original; it uses Python 3.
 
@@ -44,3 +44,14 @@ This script is heavily modified from the original; it uses Python 3.
       --fourcc FOURCC, -c FOURCC
                             Specifies FourCC for the output video. Default MJPG.
       --log LOG, -l LOG     Logging level. Default INFO.
+
+## Steps to setting up a ROS + Python3 environment in conda
+
+```
+conda create --name rosbag python=3.7
+conda activate rosbag
+conda install numpy pycryptodome imageio opencv
+export PYTHONPATH=~/miniconda3/envs/rosbag/lib/python3.7/site-packages
+export LD_LIBRARY_PATH=~/miniconda3/envs/rosbag/lib/
+pip install --extra-index-url https://rospypi.github.io/simple/ rospy rosbag roslz4 imageio-ffmpeg cv_bridge sensor_msgs geometry_msgs
+```
