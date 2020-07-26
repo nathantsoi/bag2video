@@ -92,7 +92,7 @@ def write_frames(bag, writer, topics, sizes, fps, start_time=rospy.Time(0), stop
     iterator = bag.read_messages(topics=topics, start_time=start_time, end_time=stop_time)
 
     topic, msg, t = next(iterator)
-    image = np.asarray(bridge.imgmsg_to_cv2(msg, 'bgr8'))
+    image = np.asarray(bridge.imgmsg_to_cv2(msg, encoding))
     images[convert[topic]] = image
     frame_num = int(t.to_sec()/frame_duration)
 
@@ -117,7 +117,7 @@ def write_frames(bag, writer, topics, sizes, fps, start_time=rospy.Time(0), stop
             frame_num = frame_num_next
             count += 1
 
-        image = np.asarray(bridge.imgmsg_to_cv2(msg, 'rgb8'))
+        image = np.asarray(bridge.imgmsg_to_cv2(msg, encoding))
         images[convert[topic]] = image
 
 def imshow(win, img):
@@ -145,8 +145,8 @@ if __name__ == '__main__':
                         help='Rostime representing where to start in the bag.')
     parser.add_argument('--end', '-e', action='store', default=sys.maxsize, type=float,
                         help='Rostime representing where to stop in the bag.')
-    parser.add_argument('--encoding', choices=('rgb8', 'bgr8', 'mono8'), default='bgr8',
-                        help='Encoding of the deserialized image. Default bgr8.')
+    parser.add_argument('--encoding', choices=('rgb8', 'bgr8', 'mono8'), default='rgb8',
+                        help='Encoding of the deserialized image. Default rgb8.')
     parser.add_argument('--fourcc', '-c', action='store', default='MJPG',
                         help='Specifies FourCC for the output video. Default MJPG.')
     parser.add_argument('--log', '-l',action='store',default='INFO',
