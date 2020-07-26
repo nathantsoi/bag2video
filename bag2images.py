@@ -47,7 +47,7 @@ def merge_images(images, sizes):
     return cv2.hconcat([cv2.resize(images[i],sizes[i]) for i in range(len(images))])
 
 def write_frames(bag, outdir, topics, sizes, start_time=rospy.Time(0),
-                    stop_time=rospy.Time(sys.maxsize), viz=False, encoding='bgr8'):
+                    stop_time=rospy.Time(sys.maxsize), viz=False, encoding='bgr8', skip=1):
     bridge = CvBridge()
     convert = { topics[i]:i for i in range(len(topics))}
 
@@ -66,13 +66,15 @@ def write_frames(bag, outdir, topics, sizes, start_time=rospy.Time(0),
 
         logging.debug('Topic %s updated at time %s seconds' % (topic, time ))
 
-        # record the current information up to this point in time
-        logging.info('Writing image %s at time %.6f seconds.' % (count, time) )
-        merged_image = merge_images(images, sizes)
+        if (count % skip == 0):
 
-        outpath = outdir / ( "image_%06d.png" % count )
-        logging.debug("Writing %s" % outpath)
-        imageio.imwrite( outpath, merged_image )
+            # record the current information up to this point in time
+            logging.info('Writing image %s at time %.6f seconds.' % (count, time) )
+            merged_image = merge_images(images, sizes)
+
+            outpath = outdir / ( "image_%06d.png" % count )
+            logging.debug("Writing %s" % outpath)
+            imageio.imwrite( outpath, merged_image )
 
         count += 1
 
@@ -101,6 +103,10 @@ if __name__ == '__main__':
                         help='Rostime representing where to start in the bag.')
     parser.add_argument('--end', '-e', action='store', default=sys.maxsize, type=float,
                         help='Rostime representing where to stop in the bag.')
+
+    parser.add_argument('--skip', default=1, type=int,
+                        help='Extract every N\'th image.')
+
 
     parser.add_argument('--encoding', choices=('rgb8', 'bgr8', 'mono8'), default='bgr8',
                         help='Encoding of the deserialized image. Default bgr8.')
@@ -149,6 +155,6 @@ if __name__ == '__main__':
         logging.info('Resulting video of width %s and height %s.'%(out_width,out_height))
 
         write_frames(bag=bag, outdir=args.outdir, topics=args.topics, sizes=sizes,
-                         start_time=start_time, stop_time=stop_time, encoding=args.encoding)
+                         start_time=start_time, stop_time=stop_time, encoding=args.encoding, skip=args.skip)
 
         logging.info('Done.')
