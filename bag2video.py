@@ -38,7 +38,7 @@ def get_sizes(bag, topics=None, index=0, scale=1.0, start_time=rospy.Time(0), st
             traceback.print_exc()
             sys.exit(1)
 
-    target_height = int(sizes[index][0]*scale)
+    target_height = int(sizes[index][1]*scale)
 
     # output original and scaled sizes
     for i in range(len(topics)):
