@@ -9,6 +9,8 @@ import argparse
 import logging
 import traceback
 
+import imaging_sonar_msgs
+
 # try to find cv_bridge:
 try:
     from cv_bridge import CvBridge
