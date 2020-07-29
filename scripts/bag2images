@@ -11,6 +11,10 @@ import traceback
 from pathlib import Path
 from cv_bridge import CvBridge
 
+import re
+
+import imaging_sonar_msgs
+
 
 def get_sizes(bag, topics=None, index=0, scale=1.0, start_time=rospy.Time(0), stop_time=rospy.Time(sys.maxsize)):
     logging.debug("Resizing height to topic %s (index %d)." % (topics[index] , index))
@@ -20,7 +24,23 @@ def get_sizes(bag, topics=None, index=0, scale=1.0, start_time=rospy.Time(0), st
         try:
             iterator = bag.read_messages(topics=topic, start_time=start_time, end_time=stop_time)#, raw=True)
             msg = next(iterator)[1] # read one message
-            sizes.append((msg.width, msg.height))
+
+            if re.match("imaging_sonar_msgs/ImagingSonarMsg", msg._type):
+                logging.warning("Imaging sonar message")
+
+                if len(sizes) > 0:
+                    height = sizes[0][1]
+                else:
+                    height = 1024
+
+                ## \todo get image size from serdp_common
+                width = height
+
+                sizes.append((width,height))
+
+            else:
+                sizes.append((msg.width, msg.height))
+
         except:
             logging.critical("No messages found for topic %s, or message does not have height/width." % topic)
             traceback.print_exc()
@@ -30,7 +50,7 @@ def get_sizes(bag, topics=None, index=0, scale=1.0, start_time=rospy.Time(0), st
 
     # output original and scaled sizes
     for i in range(len(topics)):
-        logging.info('Topic %s originally of height %s and width %s' % (topics[i],sizes[i][0],sizes[i][1]))
+        logging.info('Topic %s originaly of height %s and width %s' % (topics[i],sizes[i][0],sizes[i][1]))
         image_height = sizes[i][1]
         image_width = sizes[i][0]
 
@@ -40,6 +60,12 @@ def get_sizes(bag, topics=None, index=0, scale=1.0, start_time=rospy.Time(0), st
 
     return sizes
 
+def draw_msg( msg, encoding ):
+    if re.match("imaging_sonar_msgs/ImagingSonarMsg", msg._type):
+        return np.zeros( (100,100,3), dtype=np.uint8 )
+    else:
+        return np.asarray(CvBridge().imgmsg_to_cv2(msg, encoding))
+
 def calc_out_size(sizes):
     return (sum(size[0] for size in sizes),sizes[0][1])
 
@@ -48,7 +74,6 @@ def merge_images(images, sizes):
 
 def write_frames(bag, outdir, topics, sizes, start_time=rospy.Time(0),
                     stop_time=rospy.Time(sys.maxsize), viz=False, encoding='bgr8', skip=1):
-    bridge = CvBridge()
     convert = { topics[i]:i for i in range(len(topics))}
 
     images = [np.zeros((sizes[i][1],sizes[i][0],3), np.uint8) for i in range(len(topics))]
@@ -57,8 +82,8 @@ def write_frames(bag, outdir, topics, sizes, start_time=rospy.Time(0),
     iterator = bag.read_messages(topics=topics, start_time=start_time, end_time=stop_time)
 
     topic, msg, t = next(iterator)
-    image = np.asarray(bridge.imgmsg_to_cv2(msg, encoding))
-    images[convert[topic]] = image
+
+    images[convert[topic]] = draw_msg( msg, encoding )
 
     for topic, msg, t in iterator:
 
@@ -78,8 +103,7 @@ def write_frames(bag, outdir, topics, sizes, start_time=rospy.Time(0),
 
         count += 1
 
-        image = np.asarray(bridge.imgmsg_to_cv2(msg, encoding))
-        images[convert[topic]] = image
+        images[convert[topic]] = draw_msg( msg, encoding )
 
     merged_image = merge_images(images, sizes)
 
@@ -107,21 +131,25 @@ if __name__ == '__main__':
     parser.add_argument('--skip', default=1, type=int,
                         help='Extract every N\'th image.')
 
-
     parser.add_argument('--encoding', choices=('rgb8', 'bgr8', 'mono8'), default='bgr8',
                         help='Encoding of the deserialized image. Default bgr8.')
 
+    # Can specify either --verbose or --log;  --log takes precedence
     parser.add_argument('--log', '-l',action='store',default='INFO',
                         help='Logging level. Default INFO.')
+    parser.add_argument('-v', '--verbose', action='count', default=0)
 
     args = parser.parse_args()
 
     # logging setup
-    numeric_level = getattr(logging, args.log.upper(), None)
+    if args.log:
+        numeric_level = getattr(logging, args.log.upper(), None)
+    else:
+        numeric_level = args.verbose
+
     if not isinstance(numeric_level, int):
         raise ValueError('Invalid log level: %s' % loglevel)
     logging.basicConfig(format='%(asctime)s - %(levelname)s - %(message)s',level=numeric_level)
-    logging.info('Logging at level %s.',args.log.upper())
 
     args.outdir.mkdir(exist_ok=True)
 
