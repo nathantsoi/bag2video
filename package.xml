@@ -19,6 +19,7 @@
   <depend>cmake_modules</depend>
 
   <depend>imaging_sonar_msgs</depend>
+  <depend>draw_sonar</depend>
   <exec_depend>python-imageio</exec_depend>
 
 

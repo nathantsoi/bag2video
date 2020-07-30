@@ -11,6 +11,7 @@ find_package(catkin REQUIRED COMPONENTS
   sensor_msgs
   std_msgs
   imaging_sonar_msgs
+  draw_sonar
 )
 
 #find_package(NUMPY REQUIRED)
@@ -27,6 +28,7 @@ catkin_package(
     rospy
     sensor_msgs
     std_msgs
+    draw_sonar
 )
 
 include_directories(
