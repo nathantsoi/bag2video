@@ -13,8 +13,8 @@ from cv_bridge import CvBridge
 
 import re
 
-import imaging_sonar_msgs
-import draw_sonar
+#import imaging_sonar_msgs
+#import draw_sonar
 
 
 def get_sizes(bag, topics=None, index=0, scale=1.0, start_time=rospy.Time(0), stop_time=rospy.Time(sys.maxsize)):
@@ -74,47 +74,57 @@ def merge_images(images, sizes):
     return cv2.hconcat([cv2.resize(images[i],sizes[i]) for i in range(len(images))])
 
 def write_frames(bag, outdir, topics, sizes, start_time=rospy.Time(0),
-                    stop_time=rospy.Time(sys.maxsize), viz=False, encoding='bgr8', skip=1):
+                    stop_time=rospy.Time(sys.maxsize), encoding='bgr8', skip=1,
+                    sequence_number=False, skip_till_all_topics=False ):
+
     convert = { topics[i]:i for i in range(len(topics))}
 
+    present = { topic: False for topic in topics }
     images = [np.zeros((sizes[i][1],sizes[i][0],3), np.uint8) for i in range(len(topics))]
-    count = 0
+
+    frame_num = 0
 
     iterator = bag.read_messages(topics=topics, start_time=start_time, end_time=stop_time)
 
-    topic, msg, t = next(iterator)
+    for count, msg_tuple in enumerate(iterator):
 
-    images[convert[topic]] = draw_msg( msg, encoding )
+        topic, msg, t = msg_tuple
 
-    for topic, msg, t in iterator:
+        present[topics] = True
 
         time=t.to_sec()
 
-        logging.debug('Topic %s updated at time %s seconds' % (topic, time ))
+        logging.debug('Topic %s, seq %d, updated at time %s seconds' % (topic, msg.header.seq, time ))
+
+        images[convert[topic]] = draw_msg( msg, encoding )
+
+        if skip_till_all_topics and not all( v for v in present.values() ):
+            continue
 
         if (count % skip == 0):
 
             # record the current information up to this point in time
-            logging.info('Writing image %s at time %.6f seconds.' % (count, time) )
             merged_image = merge_images(images, sizes)
 
-            outpath = outdir / ( "image_%06d.png" % count )
-            logging.debug("Writing %s" % outpath)
+            if sequence_number:
+                image_name = "image_seq_%06d.png" % msg.header.seq
+            else:
+                image_name = "image_%06d.png" % count
+
+            outpath = outdir / image_name
+            logging.info('Writing image %d, seq %d, at time %.6f seconds to %s' % (count, msg.header.seq, time, outpath) )
             imageio.imwrite( outpath, merged_image )
 
-        count += 1
-
-        images[convert[topic]] = draw_msg( msg, encoding )
-
-    merged_image = merge_images(images, sizes)
-
-    outpath = outdir / ( "image_%06d.png" % count )
-    logging.debug("Writing %s" % outpath)
-    imageio.imwrite( outpath, merged_image )
 
 
 if __name__ == '__main__':
+
+    ## /todo Add option to _not_ write images until every topic has been seen once
+    ##       Prevents initial frames from having one or more dark panels when
+    ##       compositing multiple topics
+
     parser = argparse.ArgumentParser(description='Extract and encode video from bag files.')
+
     parser.add_argument('bagfile', help='Specifies the location of the bag file.')
     parser.add_argument('topics', nargs='+',help='Image topics to merge in output video.')
     parser.add_argument('--index', '-i', action='store',default=0, type=int,
@@ -131,6 +141,9 @@ if __name__ == '__main__':
 
     parser.add_argument('--skip', default=1, type=int,
                         help='Extract every N\'th image.')
+
+    parser.add_argument('--sequence-number', action="store_true", help="Label images with ROS header sequence number instead of frame within bag" )
+    parser.add_argument('--skip-till-all-topics', action="store_true", help="Skip writing images until all topics are represented")
 
     parser.add_argument('--encoding', choices=('rgb8', 'bgr8', 'mono8'), default='bgr8',
                         help='Encoding of the deserialized image. Default bgr8.')
@@ -154,6 +167,10 @@ if __name__ == '__main__':
 
     args.outdir.mkdir(exist_ok=True)
 
+    if args.sequence_number and len(args.topics) > 1:
+        logging.critical("Can only do --sequence with one topic")
+        sys.exit(-1)
+
     # convert numbers into rospy Time
     start_time=rospy.Time(args.start)
     stop_time=rospy.Time(args.end)
@@ -163,27 +180,29 @@ if __name__ == '__main__':
     except:
         logging.critical("Start time is after stop time.")
         traceback.print_exc()
-        sys.exit(1)
+        sys.exit(-1)
 
     try:
         assert args.index < len(args.topics)
     except:
         logging.critical("Index specified for resizing is out of bounds.")
         traceback.print_exc()
-        sys.exit(1)
+        sys.exit(-1)
 
     for bagfile in glob.glob(args.bagfile):
         logging.info('Proccessing bag %s.'% bagfile)
         bag = rosbag.Bag(bagfile, 'r')
 
         logging.info('Calculating video sizes.')
-        sizes = get_sizes(bag, topics=args.topics, index=args.index,scale = args.scale, start_time=start_time, stop_time=stop_time)
+        sizes = get_sizes(bag, topics=args.topics, index=args.index,scale = args.scale,
+                            start_time=start_time, stop_time=stop_time)
 
         logging.info('Calculating final image size.')
         out_width, out_height = calc_out_size(sizes)
         logging.info('Resulting video of width %s and height %s.'%(out_width,out_height))
 
         write_frames(bag=bag, outdir=args.outdir, topics=args.topics, sizes=sizes,
-                         start_time=start_time, stop_time=stop_time, encoding=args.encoding, skip=args.skip)
+                         start_time=start_time, stop_time=stop_time, encoding=args.encoding, skip=args.skip,
+                        sequence_number=args.sequence_number, skip_till_all_topics=args.skip_till_all_topics )
 
         logging.info('Done.')
