@@ -32,11 +32,18 @@ def get_sizes(bag, topics=None, index=0, scale=1.0, start_time=rospy.Time(0), st
         try:
             iterator = bag.read_messages(topics=topic, start_time=start_time, end_time=stop_time)#, raw=True)
             msg = next(iterator)[1] # read one message
-            sizes.append((msg.width, msg.height))
         except:
-            logging.critical("No messages found for topic %s, or message does not have height/width." % topic)
+            logging.critical("No messages found for topic %s" % topic)
             traceback.print_exc()
             sys.exit(1)
+        try:
+            sizes.append((msg.width, msg.height))
+        except:
+            logging.critical("No width or height on topic %s" % topic)
+            if not (args.width and args.height):
+                traceback.print_exc()
+                sys.exit(1)
+            sizes.append((args.width, args.height))
 
     target_height = int(sizes[index][1]*scale)
 
@@ -92,7 +99,10 @@ def write_frames(bag, writer, topics, sizes, fps, start_time=rospy.Time(0), stop
     iterator = bag.read_messages(topics=topics, start_time=start_time, end_time=stop_time)
 
     topic, msg, t = next(iterator)
-    image = np.asarray(bridge.imgmsg_to_cv2(msg, encoding))
+    if topic.endswith('/compressed'):
+        image = np.asarray(bridge.compressed_imgmsg_to_cv2(msg, encoding))
+    else:
+        image = np.asarray(bridge.imgmsg_to_cv2(msg, encoding))
     images[convert[topic]] = image
     frame_num = int(t.to_sec()/frame_duration)
 
@@ -117,7 +127,10 @@ def write_frames(bag, writer, topics, sizes, fps, start_time=rospy.Time(0), stop
             frame_num = frame_num_next
             count += 1
 
-        image = np.asarray(bridge.imgmsg_to_cv2(msg, encoding))
+        if topic.endswith('/compressed'):
+            image = np.asarray(bridge.compressed_imgmsg_to_cv2(msg, encoding))
+        else:
+            image = np.asarray(bridge.imgmsg_to_cv2(msg, encoding))
         images[convert[topic]] = image
 
 def imshow(win, img):
@@ -134,6 +147,10 @@ if __name__ == '__main__':
     parser.add_argument('topics', nargs='+',help='Image topics to merge in output video.')
     parser.add_argument('--index', '-i', action='store',default=0, type=int,
                         help='Resizes all images to match the height of the topic specified. Default 0.')
+    parser.add_argument('--height', action='store',default=0, type=int,
+                        help='input height, required if not specified on the topic')
+    parser.add_argument('--width', action='store',default=0, type=int,
+                        help='input width, required if not specified on the topic')
     parser.add_argument('--scale', '-x', action='store',default=1, type=float,
                         help='Global scale for all images. Default 1.')
     parser.add_argument('--outfile', '-o', action='store', default=None,
