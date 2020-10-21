@@ -224,7 +224,8 @@ if __name__ == '__main__':
         logging.info('Opening video writer.')
         #fourcc = cv2.VideoWriter_fourcc(*args.fourcc) # opencv
         #writer = cv2.VideoWriter(outfile, fourcc, fps, (out_width,out_height)) # opencv
-        writer = imageio.get_writer(outfile, format='FFMPEG', mode='I', fps=fps, codec='h264' )
+        #writer = imageio.get_writer(outfile, format='FFMPEG', mode='I', fps=fps, codec='h264' )
+        writer = imageio.get_writer(outfile, mode='I', fps=fps)
         #writer = imageio.get_writer(outfile, fps=fps, mode='I', format="FFMPEG", macro_block_size=1) # imageio
 
         logging.info('Writing video at %s.'% outfile)
