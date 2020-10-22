@@ -118,7 +118,7 @@ def write_frames(bag, writer, topics, sizes, fps, start_time=rospy.Time(0), stop
         # prevent unnecessary calculations
         if reps>0:
             # record the current information up to this point in time
-            logging.info('Writing image %s at time %.6f seconds, frame %s for %s frames.' % (count, time, frame_num, reps))
+            logging.debug('Writing image %s at time %.6f seconds, frame %s for %s frames.' % (count, time, frame_num, reps))
             merged_image = merge_images(images, sizes)
             for i in range(reps):
                 #writer.write(merged_image) # opencv
@@ -161,7 +161,9 @@ if __name__ == '__main__':
     parser.add_argument('--start', '-s', action='store', default=0, type=float,
                         help='Rostime representing where to start in the bag.')
     parser.add_argument('--end', '-e', action='store', default=sys.maxsize, type=float,
-                        help='Rostime representing where to stop in the bag.')
+                        help='Rostime representing where to stop in the bag or duration when used with --stop_topic.')
+    parser.add_argument('--stop_topic', action='store', default='',
+                        help='A boolean topic. Recording stops when the topic is false. When used with --end, --end becomes the debounce time for --stop_topic in float seconds.')
     parser.add_argument('--encoding', choices=('rgb8', 'bgr8', 'mono8'), default='rgb8',
                         help='Encoding of the deserialized image. Default rgb8.')
     parser.add_argument('--fourcc', '-c', action='store', default='MJPG',
@@ -205,6 +207,23 @@ if __name__ == '__main__':
             folder, name = os.path.split(bagfile)
             outfile = os.path.join(folder, name[:name.rfind('.')]) + '.mp4'
         bag = rosbag.Bag(bagfile, 'r')
+
+        if args.stop_topic != '':
+            logging.info('Calculating stop_time based on stop_topic: {}.'.format(args.stop_topic))
+            debounce_duration = rospy.Duration.from_sec(15.0)
+            if args.end != sys.maxsize:
+                debounce_duration = rospy.Duration.from_sec(args.end)
+            debounce_time = start_time + debounce_duration
+            for topic, msg, ts in bag.read_messages(topics=[args.stop_topic], start_time=start_time):
+                stop_time = ts
+                if msg.data:
+                    if ts > debounce_time:
+                        break
+                else:
+                    debounce_time = ts + debounce_duration
+            if stop_time == ts:
+                stop_time += debounce_duration
+            logging.info('stop_time: {}, last ts: {}.'.format(stop_time, ts))
 
         fps = args.fps
         if not fps:
