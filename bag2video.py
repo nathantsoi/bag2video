@@ -214,6 +214,7 @@ if __name__ == '__main__':
             if args.end != sys.maxsize:
                 debounce_duration = rospy.Duration.from_sec(args.end)
             debounce_time = start_time + debounce_duration
+            ts = None
             for topic, msg, ts in bag.read_messages(topics=[args.stop_topic], start_time=start_time):
                 stop_time = ts
                 if msg.data:
